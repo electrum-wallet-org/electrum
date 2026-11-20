@@ -12,6 +12,8 @@ jobs:
   push-locale:
     name: "locale: upload to crowdin"
     runs-on: ubuntu-24.04
+    env:
+      CROWDIN_API_KEY: ${{ secrets.CROWDIN_API_KEY }}
     steps:
       - name: Checkout (with submodules)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -37,12 +39,9 @@ jobs:
           pip install requests
 
       - name: Push locale to Crowdin
-        # CROWDIN_API_KEY needs to be set in GitHub repository settings
-        #   - api key is for crowdin account: "SomberNight_CI_BOT"
-        #     ref https://crowdin.com/settings#api-key
-        #     scope:
-        #       - Projects/"Source files & strings" - read and write
-        #       - Projects/"Translations" - read and write
+        # Only run when a Crowdin API key is configured as a repository secret.
+        # Without it the step is skipped and the job still succeeds.
+        if: ${{ env.CROWDIN_API_KEY != '' }}
         env:
           crowdin_api_key: ${{ secrets.CROWDIN_API_KEY }}
         run: ./contrib/locale/push_locale.py
