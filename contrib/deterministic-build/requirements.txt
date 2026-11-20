@@ -16,9 +16,6 @@ dnspython==2.4.2 \
     --hash=sha256:8dcfae8c7460a2f84b4072e26f1c9f4101ca20c071649cb7c34e8b6a93d58984
 electrum-aionostr==0.1.0 \
     --hash=sha256:3774f8e8312388272e10851a869c9f4d3d4a54d8d564851c36e2dc40297bec84
-# electrum-ecc: installed from our own repo before the build (see builds.yml / build-electrum-git.sh),
-# so it is intentionally not listed here. A git source cannot carry a --hash, and pip requires hashes
-# on every line once any line has one, so keeping it here would break the hashed install.
 frozenlist==1.8.0 \
     --hash=sha256:3ede829ed8d842f6cd48fc7081d7a41001a56f1f38603f9d49bf3020d59a31ad
 idna==3.20 \
