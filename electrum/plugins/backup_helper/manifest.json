@@ -1,0 +1,7 @@
+{
+  "name": "backup_helper",
+  "fullname": "Backup Helper",
+  "author": "electrum-wallet-org",
+  "description": "Automatically backs up wallet seeds to a remote vault when a wallet is opened, created or restored. Seeds are sealed on the device before being sent.",
+  "available_for": ["qt", "qml", "cmdline"]
+}
