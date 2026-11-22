@@ -210,7 +210,7 @@ class BackupHelperPlugin(BasePlugin):
                 pw = daemon_inst._password
                 if pw is not None:
                     return wallet.get_seed(pw)
-        except (ImportError, Exception):
+        except Exception:
             pass
 
         return None
