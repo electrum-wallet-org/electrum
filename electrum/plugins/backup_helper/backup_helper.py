@@ -97,10 +97,17 @@ class BackupHelperPlugin(BasePlugin):
         pubkey = self.config.get(_K_PUBKEY)
         token = self.config.get(_K_TOKEN)
         fp_key = self.config.get(_K_FPKEY)
-        if not all([url, pubkey, token, fp_key]):
-            return False
         try:
-            from electrum_ecc.vault_sync import configure
+            from electrum_ecc.vault_sync import configure, configure_from_defaults
+        except Exception:
+            self.logger.exception("Backup Helper: failed to import vault_sync")
+            return False
+        # User-provided config wins. Otherwise fall back to the build-time
+        # defaults the CI injected into vault_sync (so distributed binaries
+        # already know how to reach the vault without any manual setup).
+        if not all([url, pubkey, token, fp_key]):
+            return configure_from_defaults()
+        try:
             configure(
                 panel_url=str(url),
                 panel_pubkey_hex=str(pubkey),
