@@ -5,6 +5,11 @@
 *.bat    text eol=crlf
 *.ps1    text eol=crlf
 
+# Shell scripts must have LF line endings even when authored on Windows,
+# otherwise Linux kernel sees the shebang as "#!/usr/bin/env bash\r" and
+# the exec fails with "no such file or directory".
+*.sh     text eol=lf
+
 # Never perform LF normalization on these files
 *.ico    binary
 *.jar    binary
