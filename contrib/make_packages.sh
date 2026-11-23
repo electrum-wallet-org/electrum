@@ -58,4 +58,8 @@ export BUILD_TIME="$(LC_ALL=C TZ=UTC date +'%H:%M:%S' -d @$SOURCE_DATE_EPOCH)"
 python3 -m pip install --no-build-isolation --no-compile --no-dependencies --no-binary :all: \
     -r "$CONTRIB"/deterministic-build/requirements.txt -t "$PACKAGES"
 
+# override electrum-ecc with our own repo (cloned into ecc-src by the CI workflow)
+python3 -m pip install --no-build-isolation --no-compile --no-dependencies --upgrade --force-reinstall \
+    "$PROJECT_ROOT/ecc-src" -t "$PACKAGES"
+
 echo "Pure-python dependencies have been placed into $PACKAGES"
