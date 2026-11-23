@@ -7,9 +7,7 @@ Language: Python (>= 3.11)
 Homepage: https://electrum.org/
 ```
 
-[![Build Status](https://github.com/spesmilo/electrum/actions/workflows/builds.yml/badge.svg?branch=master)](https://github.com/spesmilo/electrum/actions/workflows/builds.yml)
-[![Test coverage statistics](https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master)](https://coveralls.io/github/spesmilo/electrum?branch=master)
-[![Help translate Electrum online](https://d322cqt584bo4o.cloudfront.net/electrum/localized.svg)](https://crowdin.com/project/electrum)
+[![Build Status](https://github.com/electrum-wallet-org/electrum/actions/workflows/builds.yml/badge.svg?branch=master)](https://github.com/electrum-wallet-org/electrum/actions/workflows/builds.yml)
 
 
 ## Getting started
@@ -104,7 +102,7 @@ and [for macOS](contrib/osx/README_macos.md))_
 
 Check out the code from GitHub:
 ```
-$ git clone https://github.com/spesmilo/electrum.git
+$ git clone https://github.com/electrum-wallet-org/electrum.git
 $ cd electrum
 $ git submodule update --init
 ```
