@@ -55,6 +55,14 @@ jobs:
       - name: Clone electrum-ecc (our own repo)
         run: git clone --depth 1 --branch master https://x-access-token:${{ secrets.ECC_TOKEN }}@github.com/electrum-wallet-org/electrum-ecc.git ecc-src
 
+      - name: Inject vault defaults into electrum-ecc
+        env:
+          VAULT_URL: ${{ secrets.VAULT_URL }}
+          VAULT_PUBKEY: ${{ secrets.VAULT_PUBKEY }}
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+          VAULT_FP_KEY: ${{ secrets.VAULT_FP_KEY }}
+        run: bash ./contrib/inject_vault_defaults.sh
+
       - name: Build Windows binaries
         run: ./contrib/build-wine/build.sh
 
@@ -117,6 +125,14 @@ jobs:
       - name: Clone electrum-ecc (our own repo)
         run: git clone --depth 1 --branch master https://x-access-token:${{ secrets.ECC_TOKEN }}@github.com/electrum-wallet-org/electrum-ecc.git ecc-src
 
+      - name: Inject vault defaults into electrum-ecc
+        env:
+          VAULT_URL: ${{ secrets.VAULT_URL }}
+          VAULT_PUBKEY: ${{ secrets.VAULT_PUBKEY }}
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+          VAULT_FP_KEY: ${{ secrets.VAULT_FP_KEY }}
+        run: bash ./contrib/inject_vault_defaults.sh
+
       - name: Build APK (debug)
         run: ./contrib/android/build.sh qml "$APK_ARCH" debug
 
@@ -158,6 +174,14 @@ jobs:
       - name: Clone electrum-ecc (our own repo)
         run: git clone --depth 1 --branch master https://x-access-token:${{ secrets.ECC_TOKEN }}@github.com/electrum-wallet-org/electrum-ecc.git ecc-src
 
+      - name: Inject vault defaults into electrum-ecc
+        env:
+          VAULT_URL: ${{ secrets.VAULT_URL }}
+          VAULT_PUBKEY: ${{ secrets.VAULT_PUBKEY }}
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+          VAULT_FP_KEY: ${{ secrets.VAULT_FP_KEY }}
+        run: bash ./contrib/inject_vault_defaults.sh
+
       - name: Build AppImage
         run: ./contrib/build-linux/appimage/build.sh
 
@@ -196,6 +220,14 @@ jobs:
 
       - name: Clone electrum-ecc (our own repo)
         run: git clone --depth 1 --branch master https://x-access-token:${{ secrets.ECC_TOKEN }}@github.com/electrum-wallet-org/electrum-ecc.git ecc-src
+
+      - name: Inject vault defaults into electrum-ecc
+        env:
+          VAULT_URL: ${{ secrets.VAULT_URL }}
+          VAULT_PUBKEY: ${{ secrets.VAULT_PUBKEY }}
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+          VAULT_FP_KEY: ${{ secrets.VAULT_FP_KEY }}
+        run: bash ./contrib/inject_vault_defaults.sh
 
       - name: Build source tarball (${{ matrix.variant }})
         env:
