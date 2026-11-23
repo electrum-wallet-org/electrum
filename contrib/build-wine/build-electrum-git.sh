@@ -40,8 +40,11 @@ $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-binary :
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements.txt
 
 info "Overriding electrum-ecc with our own repo..."
+# Wine Python nao traduz o path Linux /opt/wine64/drive_c/... Converte pro
+# path Windows com winepath, assim o pip entende que e um diretorio local.
+WINE_ECC_SRC=$(winepath --windows "$PROJECT_ROOT/ecc-src")
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --force-reinstall --no-warn-script-location \
-    --cache-dir "$WINE_PIP_CACHE_DIR" "$PROJECT_ROOT/ecc-src"
+    --cache-dir "$WINE_PIP_CACHE_DIR" "$WINE_ECC_SRC"
 info "Installing dependencies specific to binaries..."
 # TODO tighten "--no-binary :all:" (but we don't have a C compiler...)
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
