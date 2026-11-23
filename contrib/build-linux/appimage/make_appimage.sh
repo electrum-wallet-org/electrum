@@ -151,6 +151,10 @@ info "installing electrum and its dependencies."
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
 
+info "Overriding electrum-ecc with our own repo..."
+"$python" -m pip install --no-build-isolation --no-dependencies --force-reinstall --no-warn-script-location \
+    --cache-dir "$PIP_CACHE_DIR" "$PROJECT_ROOT/ecc-src"
+
 "$python" -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" "$PROJECT_ROOT"
 
