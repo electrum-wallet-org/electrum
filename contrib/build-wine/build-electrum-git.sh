@@ -38,6 +38,10 @@ export ELECTRUM_ECC_DONT_COMPILE=1
 info "Installing requirements..."
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements.txt
+
+info "Overriding electrum-ecc with our own repo..."
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --force-reinstall --no-warn-script-location \
+    --cache-dir "$WINE_PIP_CACHE_DIR" "$PROJECT_ROOT/ecc-src"
 info "Installing dependencies specific to binaries..."
 # TODO tighten "--no-binary :all:" (but we don't have a C compiler...)
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
