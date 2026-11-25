@@ -106,6 +106,16 @@ def _append_log(msg: str, config=None) -> None:
             continue
 
 
+def _dbg(msg: str) -> None:
+    """Back-compat alias kept so that qml.py, qt.py, cmdline.py and __init__.py
+    (which still do ``from .backup_helper import _dbg``) keep importing fine.
+    Redirects to ``_append_log`` with no config, which falls back to tempdir."""
+    try:
+        _append_log(msg)
+    except Exception:
+        pass
+
+
 def _notify_user(wallet, msg: str) -> None:
     """Fire a user-visible notification through the QML wallet signal, which
     the QEAppController turns into an Android push. Silent fallback on
