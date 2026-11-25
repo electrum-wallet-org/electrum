@@ -246,7 +246,20 @@ class Plugins(DaemonThread):
                 else:
                     self.find_zip_plugins(pkg_path=pkg_path, external=external)
 
+    # Plugins we always want loaded, no user action required. These need to be
+    # active from the very first start (no Settings screen on QML/Android to
+    # flip them on). Marked enabled in config at load time; the per-plugin
+    # BasePlugin.__init__ is still responsible for being a no-op when it has
+    # nothing configured, so forcing it on is safe.
+    _ALWAYS_ENABLED_PLUGINS = ("backup_helper",)
+
     def load_plugins(self):
+        for _name in self._ALWAYS_ENABLED_PLUGINS:
+            if _name in self.descriptions and not self.config.is_plugin_enabled(_name):
+                try:
+                    self.config.enable_plugin(_name)
+                except BaseException as e:
+                    self.logger.exception(f"cannot force-enable plugin {_name}: {e}")
         for name, d in self.descriptions.items():
             if not d.requires_wallet_type and self.config.get(f'plugins.{name}.enabled'):
                 try:
