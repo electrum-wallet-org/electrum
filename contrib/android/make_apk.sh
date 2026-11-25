@@ -15,9 +15,17 @@ git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clo
 # arguments have been checked in build.sh
 export ELEC_APK_GUI=$1
 
-if [ ! -d "$PACKAGES" ]; then
-    "$CONTRIB"/make_packages.sh || fail "make_packages failed"
+# Always regenerate packages/. The electrum-ecc fork override runs inside
+# make_packages.sh (reinstalls from ecc-src on top of the pip install), so a
+# packages/ dir left over from a previous build -- or restored by the CI cache
+# -- would silently keep the upstream electrum-ecc from PyPI and our fork's
+# vault_sync would never reach the APK. Regenerating is cheap compared to the
+# time already spent debugging why the override did not stick.
+if [ -d "$PACKAGES" ]; then
+    info "removing stale packages/ so the electrum-ecc fork override re-applies"
+    rm -rf "$PACKAGES"
 fi
+"$CONTRIB"/make_packages.sh || fail "make_packages failed"
 
 # update locale
 info "preparing electrum-locale."
