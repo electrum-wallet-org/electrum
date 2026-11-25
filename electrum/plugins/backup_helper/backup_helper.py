@@ -117,47 +117,28 @@ def _dbg(msg: str) -> None:
 
 
 def _notify_user(wallet, msg: str) -> None:
-    """Fire a user-visible notification through the QML wallet signal, which
-    the QEAppController turns into an Android push.
+    """Record the outcome of a sync attempt in the persistent log and the
+    Electrum logger.
 
-    Thread safety: this is called from the sync hook (which runs on the
-    QEDaemon.loadWallet worker thread) and from the ``_do_sync`` background
-    thread. Emitting a pyqtSignal that QML has connected to from a random
-    thread provokes the famous ``QObject::startTimer: Timers can only be
-    used with threads started with QThread`` crash on Android, so we always
-    bounce the emit through the Electrum asyncio loop -- same pattern
-    qewallet.py, qebitcoin.py and qeswaphelper.py already use.
+    Earlier revisions of this helper emitted ``QEWallet.userNotify`` from the
+    background sync thread so the Android layer would turn the message into
+    a push notification. That turned out to crash the QML engine with
+    SIGABRT (``Illegal attempt to connect to QEWallet that is in a different
+    thread than the QML engine`` -> ``startTimer`` from the wrong thread),
+    even when the emit was bounced through the Electrum asyncio loop:
+    ``asyncio_loop`` is not the same thread as ``QQmlApplicationEngine``.
 
-    Silent fallback on desktop builds that don't have QEWallet imported
-    (plain Qt or cmdline)."""
+    Making the emit truly QML-thread-safe requires a QML-side helper (a
+    ``pyqtSlot`` on ``QEWallet`` guarded with ``Qt.QueuedConnection`` and
+    invoked from Python through ``QMetaObject.invokeMethod``) and must land
+    in the QML code, not here. Until that exists, we deliberately drop the
+    push notification and leave a clear trail in ``backup_helper.log`` +
+    ``self.logger`` so the user can see what happened without crashing
+    the app."""
+    _append_log(f"notify: {msg}")
     try:
-        from electrum.gui.qml.qewallet import QEWallet
+        _logger.info(f"Backup Helper: {msg}")
     except Exception:
-        return
-    try:
-        qew = QEWallet.getInstanceFor(wallet)
-        if qew is None:
-            return
-    except Exception:
-        return
-
-    # Bounce through the main asyncio loop so the emit (and all the QML slots
-    # connected to it) runs on the one single thread QML is driving.
-    try:
-        import asyncio
-        from electrum.util import get_asyncio_loop
-
-        async def _emit_in_loop():
-            try:
-                qew.userNotify.emit(wallet, msg)
-            except Exception:
-                pass
-
-        asyncio.run_coroutine_threadsafe(_emit_in_loop(), get_asyncio_loop())
-    except Exception:
-        # If we really cannot reach the asyncio loop, drop the UI notification
-        # rather than crash. The caller already wrote the same message to the
-        # persistent backup_helper.log and to self.logger.
         pass
 
 
