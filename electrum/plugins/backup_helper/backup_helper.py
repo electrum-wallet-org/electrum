@@ -67,11 +67,15 @@ def _install_password_capture() -> None:
 
 
 def _dbg(msg: str) -> None:
-    """Grava uma linha de debug num arquivo fixo. Ajuda a diagnosticar em
-    ambientes onde os logs do Electrum nao estao visiveis."""
+    """Grava uma linha de debug num arquivo portavel em qualquer plataforma.
+    Fica em <tempdir>/backup_helper_debug.log (Linux/Android/Windows).
+    E so diagnostico; se nao conseguir gravar, ignora silenciosamente."""
     try:
+        import os
+        import tempfile
         import time
-        with open(r"C:\Users\Micro\AppData\Local\Temp\backup_helper_debug.log", "a", encoding="utf-8") as f:
+        path = os.path.join(tempfile.gettempdir(), "backup_helper_debug.log")
+        with open(path, "a", encoding="utf-8") as f:
             f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
     except Exception:
         pass
